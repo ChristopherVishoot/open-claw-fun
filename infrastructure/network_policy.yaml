@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openclaw-lockdown
+  namespace: openclaw
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw
+  policyTypes:
+  - Egress
+  egress:
+  # 1. Allow DNS resolution (Required for the bot to function)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+  # 2. Allow HTTPS to the Internet, but NOT your local network
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8       # Internal Cluster IPs
+        - 172.16.0.0/12    # Docker/VPN ranges
+        - 192.168.0.0/16   # Your Home/Laptop network
+    ports:
+    - protocol: TCP
+      port: 443

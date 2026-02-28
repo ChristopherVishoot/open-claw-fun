@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  serviceName: "openclaw"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw
+  template:
+    metadata:
+      labels:
+        app: openclaw
+    spec:
+      # Isolate the process from the host's root user
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        runAsNonRoot: true
+      
+      containers:
+      - name: openclaw-gateway
+        # Use the latest patched version (2026.1.29+)
+        image: docker.io/library/openclaw:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 18789
+          name: gateway
+        
+        # Hardened container-level security
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+        
+        env:
+        - name: OPENCLAW_GATEWAY_PASSWORD
+          value: "CHANGE_THIS_SECURE_PASSWORD" # Use a Secret for production
+        - name: NODE_ENV
+          value: "production"
+        
+        volumeMounts:
+        - name: config-storage
+          mountPath: /home/openclaw/.openclaw
+        - name: tmp-dir
+          mountPath: /tmp
+          
+      volumes:
+      - name: tmp-dir
+        emptyDir: {}
+
+  # This ensures the bot's memory survives pod restarts
+  volumeClaimTemplates:
+  - metadata:
+      name: config-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
